@@ -1,4 +1,4 @@
-# SpanningEdgeBetwenness
+# SpanningEdgeBetweenness
 Implementation of Spanning Edge Betweenness Centrality 
 
 Papers published:
