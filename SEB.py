@@ -1,6 +1,3 @@
-from audioop import tomono
-from itertools import count
-from tracemalloc import start
 import networkx as nx
 import scipy as sp
 import scipy.sparse
@@ -12,11 +9,11 @@ from disjoint_set import DisjointSet
 import time
 
 
-def calc_edges_SEB(temp_matrix, current_edges, calcdet, calcNMSTsDet, mapaux, mapsets):
+def calc_edges_SEB(temp_matrix, edges, prev, nEdge, calcdet, calcNMSTsDet, mapaux, mapsets):
     seb = {}
     
-    for edge in current_edges:
-        u, v = edge[0], edge[1]
+    for edge in np.arange(prev, nEdge):
+        u, v = edges[edge][0], edges[edge][1]
         s = mapsets[u]
         d = mapsets[v]
         
@@ -31,8 +28,14 @@ def calc_edges_SEB(temp_matrix, current_edges, calcdet, calcNMSTsDet, mapaux, ma
                 vgraph.append(el)
                 
         matrix = temp_matrix[vgraph, :] [:, vgraph]
-        eMSTs = np.linalg.det(matrix)
-        value = {(u, v) : round(eMSTs/calcNMSTsDet[mapaux[u]],3)}
+        #calculated as in the Java version using Lapack factorization
+        LU, piv, info = la.dgetrf(matrix)
+        detCalc = 0
+        for x in np.diag(LU):
+            detCalc += np.log10(np.abs(x))
+        eMSTs = detCalc
+        #eMSTs = np.linalg.det(matrix)
+        value = {(u, v) : round(eMSTs-calcNMSTsDet[mapaux[u]],3)}
         seb.update(value)
         
     return seb
@@ -44,6 +47,7 @@ def seb_weighted(G):
     for e in G.edges():
         edges.append([e[0],e[1],G[e[0]][e[1]]['weight']])
     edges = sorted(edges, key = itemgetter(2))
+    nEdges = len(edges)
     current_weight = edges[0][2]
 
     ds = DisjointSet()
@@ -51,19 +55,21 @@ def seb_weighted(G):
     mapaux = np.full(size, -1)
     vaux = []
     seb_values = {}
-    nMSTs = 1
-    temp_matrix = np.zeros((len(G.nodes()), len(G.nodes())))
-    current_edges = []
+    temp_matrix = np.zeros((size, size))
 
-    nmsts = 1
+    nmsts = 0
 
     f = open("SEBstats","w+")
 
+    prev = 0
+    nEdge = 0
+
     while(True):
 
-        if(len(edges) != 0 and edges[0][2] == current_weight): 
+
+        if(nEdge < nEdges and edges[nEdge][2] == current_weight): 
             
-            u, v = edges[0][0], edges[0][1]
+            u, v = edges[nEdge][0], edges[nEdge][1]
             if u not in vaux:
                 vaux.append(u)
             if v not in vaux:
@@ -82,10 +88,9 @@ def seb_weighted(G):
             if(not ds.connected(u,v)):
                 ds.union(u,v)
                 
-            current_edges.append(edges[0])
-            edges.remove(edges[0])
+            nEdge += 1
             
-        else: 
+        elif prev != nEdge:
             mapid = 0
             for i in range(size):
                 setid = ds.find(i)
@@ -114,26 +119,37 @@ def seb_weighted(G):
                     vgraph = calcdet[i].copy()
                     vgraph.pop(0)
                     matrix = temp_matrix[vgraph, :] [:, vgraph]
-                    msts = np.linalg.det(matrix)
-                    nmsts *= msts
+                    print(matrix, flush=True)
+                    time.sleep(2)
+                    LU, piv, info = la.dgetrf(matrix)
+                    detCalc = 0
+                    for x in np.diag(LU):
+                        detCalc += np.log10(np.abs(x))
+                    msts = detCalc
+                    #msts = np.linalg.det(matrix)
+                    nmsts += msts
                     calcNMSTsDet[i] = msts
 
-            seb = calc_edges_SEB(temp_matrix, current_edges, calcdet, calcNMSTsDet, mapaux, mapsets)
+            seb = calc_edges_SEB(temp_matrix, edges, prev, nEdge, calcdet, calcNMSTsDet, mapaux, mapsets)
             seb_values.update(seb)
 
-            if len(edges) == 0:
-                break;
+            prev = nEdge
+            print("nEdge: ", nEdge, " nEdges: ", nEdges)
+            if (nEdge >= nEdges):
+                break
 
-            current_edges = []
-            current_weight = edges[0][2]
+            current_weight += 1
             temp_matrix = np.zeros((mapid, mapid))
             vaux = []
             mapsets = mapaux.copy()
             mapaux = np.full(size, -1)
 
+        else:
+            current_weight += 1
+
     nx.set_edge_attributes(G, seb_values,'SEB')
     #print("Total of Minimum Spanning Trees: " + str(round(nmsts)) + "\n")
-    f.write("Total of Minimum Spanning Trees: " + str(round(nmsts)) + "\n")
+    f.write("Total of Minimum Spanning Trees: 10^" + str(round(nmsts)) + "\n")
     for e in G.edges():
         #print(e)
         f.write("" + str(e[0]) + " " + str(e[1]) + " " + str(G[e[0]][e[1]]['SEB']) + "\n")
@@ -149,6 +165,7 @@ def seb_unweighted(G):
     toMSTs = np.delete(Laplacian, 0, 0)
     toMSTs = np.delete(toMSTs, 0, 1)
 
+
     LU, piv, info = la.dgetrf(toMSTs)
     detCalc = 0
     for x in np.diag(LU):
@@ -157,11 +174,14 @@ def seb_unweighted(G):
 
     f.write("Total of Minimum Spanning Trees: 10^" + str(round(nMSTs,3)) + "\n")
 
-
+    x = 0
     for e in G.edges():
+        print(x)
+        x += 1
         eMSTs = calc_SEB(Laplacian, e, nMSTs)
         G[e[0]][e[1]]['SEB'] = eMSTs
         f.write("" + str(e[0]) + " " + str(e[1]) + " 10^" + str(eMSTs) + "\n")
+    f.write("################################")
     f.close()
 
 def calc_SEB(matrix, e, nMSTs):
@@ -179,5 +199,54 @@ def calc_SEB(matrix, e, nMSTs):
 
     return round(eMSTs-nMSTs,3)
 
-G = nx.read_edgelist("example_network", nodetype=int)
+G = nx.read_weighted_edgelist("simplenet", nodetype=int)
+seb_weighted(G)
+
+"""
+output_file = open("SEBtimesScipy","w+")
+
+output_file.write("scipy factorization" + "\n")
+G = nx.read_edgelist("powerout", nodetype=int)
+s = time.process_time()
 seb_unweighted(G)
+e = time.process_time()
+d = e - s
+output_file.write("power network: " + str(d) + "\n")
+
+G1 = nx.read_edgelist("bio-celegans_out", nodetype=int)
+s = time.process_time()
+seb_unweighted(G1)
+e = time.process_time()
+d = e - s
+output_file.write("bio network: " + str(d) + "\n")
+
+G2 = nx.read_edgelist("ca-netscience_out", nodetype=int)
+s = time.process_time()
+seb_unweighted(G2)
+e = time.process_time()
+d = e - s
+output_file.write("netscience network: " + str(d) + "\n")
+
+G3 = nx.read_edgelist("soc-dolphins_out", nodetype=int)
+s = time.process_time()
+seb_unweighted(G3)
+e = time.process_time()
+d = e - s
+output_file.write("dolphins network: " + str(d) + "\n")
+
+G4 = nx.read_edgelist("fb_out", nodetype=int)
+s = time.process_time()
+seb_unweighted(G4)
+e = time.process_time()
+d = e - s
+output_file.write("fb network: " + str(d) + "\n")
+
+G5 = nx.read_edgelist("web-edu_out", nodetype=int)
+s = time.process_time()
+seb_unweighted(G5)
+e = time.process_time()
+d = e - s
+output_file.write("edu network: " + str(d) + "\n")
+
+print("FINISHED")
+"""
