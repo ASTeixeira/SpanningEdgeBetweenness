@@ -29,13 +29,14 @@ def calc_edges_SEB(temp_matrix, edges, prev, nEdge, calcdet, calcNMSTsDet, mapau
                 
         matrix = temp_matrix[vgraph, :] [:, vgraph]
         #calculated as in the Java version using Lapack factorization
-        LU, piv, info = la.dgetrf(matrix)
         detCalc = 0
-        for x in np.diag(LU):
-            detCalc += np.log10(np.abs(x))
+        if len(matrix) > 0:
+            LU, piv, info = la.dgetrf(matrix)
+            for x in np.diag(LU):
+                detCalc += np.log10(np.abs(x))
         eMSTs = detCalc
-        #eMSTs = np.linalg.det(matrix)
-        value = {(u, v) : round(eMSTs-calcNMSTsDet[mapaux[u]],3)}
+
+        value = {(u, v) : round(10**(eMSTs-calcNMSTsDet[mapaux[u]]),3)}
         seb.update(value)
         
     return seb
@@ -117,16 +118,15 @@ def seb_weighted(G):
             for i in range(len(calcdet)):
                 if len(calcdet[i]) != 0:
                     vgraph = calcdet[i].copy()
-                    vgraph.pop(0)
+                    print("vgraph: ", vgraph)
+                    vgraph = vgraph[1:]
                     matrix = temp_matrix[vgraph, :] [:, vgraph]
-                    print(matrix, flush=True)
-                    time.sleep(2)
-                    LU, piv, info = la.dgetrf(matrix)
                     detCalc = 0
-                    for x in np.diag(LU):
-                        detCalc += np.log10(np.abs(x))
+                    if len(matrix) > 0:
+                        LU, piv, info = la.dgetrf(matrix)
+                        for x in np.diag(LU):
+                            detCalc += np.log10(np.abs(x))
                     msts = detCalc
-                    #msts = np.linalg.det(matrix)
                     nmsts += msts
                     calcNMSTsDet[i] = msts
 
@@ -149,7 +149,7 @@ def seb_weighted(G):
 
     nx.set_edge_attributes(G, seb_values,'SEB')
     #print("Total of Minimum Spanning Trees: " + str(round(nmsts)) + "\n")
-    f.write("Total of Minimum Spanning Trees: 10^" + str(round(nmsts)) + "\n")
+    f.write("Total of Minimum Spanning Trees: 10^" + str(round(nmsts, 3)) + "\n")
     for e in G.edges():
         #print(e)
         f.write("" + str(e[0]) + " " + str(e[1]) + " " + str(G[e[0]][e[1]]['SEB']) + "\n")
@@ -166,11 +166,12 @@ def seb_unweighted(G):
     toMSTs = np.delete(toMSTs, 0, 1)
 
 
-    LU, piv, info = la.dgetrf(toMSTs)
     detCalc = 0
-    for x in np.diag(LU):
-        detCalc += np.log10(np.abs(x))
-    nMSTs = detCalc
+    if len(toMSTs) > 0:
+        LU, piv, info = la.dgetrf(toMSTs)
+        for x in np.diag(LU):
+            detCalc += np.log10(np.abs(x))
+        nMSTs = detCalc
 
     f.write("Total of Minimum Spanning Trees: 10^" + str(round(nMSTs,3)) + "\n")
 
@@ -181,7 +182,6 @@ def seb_unweighted(G):
         eMSTs = calc_SEB(Laplacian, e, nMSTs)
         G[e[0]][e[1]]['SEB'] = eMSTs
         f.write("" + str(e[0]) + " " + str(e[1]) + " 10^" + str(eMSTs) + "\n")
-    f.write("################################")
     f.close()
 
 def calc_SEB(matrix, e, nMSTs):
@@ -190,63 +190,15 @@ def calc_SEB(matrix, e, nMSTs):
 
 
     #calculated as in the Java version using Lapack factorization
-    LU, piv, info = la.dgetrf(toMSTs)
     detCalc = 0
-    for x in np.diag(LU):
-        detCalc += np.log10(np.abs(x))
-    eMSTs = detCalc
+    if len(toMSTs) > 0:
+        LU, piv, info = la.dgetrf(toMSTs)
+        for x in np.diag(LU):
+            detCalc += np.log10(np.abs(x))
+        eMSTs = detCalc
     
 
     return round(eMSTs-nMSTs,3)
 
 G = nx.read_weighted_edgelist("simplenet", nodetype=int)
 seb_weighted(G)
-
-"""
-output_file = open("SEBtimesScipy","w+")
-
-output_file.write("scipy factorization" + "\n")
-G = nx.read_edgelist("powerout", nodetype=int)
-s = time.process_time()
-seb_unweighted(G)
-e = time.process_time()
-d = e - s
-output_file.write("power network: " + str(d) + "\n")
-
-G1 = nx.read_edgelist("bio-celegans_out", nodetype=int)
-s = time.process_time()
-seb_unweighted(G1)
-e = time.process_time()
-d = e - s
-output_file.write("bio network: " + str(d) + "\n")
-
-G2 = nx.read_edgelist("ca-netscience_out", nodetype=int)
-s = time.process_time()
-seb_unweighted(G2)
-e = time.process_time()
-d = e - s
-output_file.write("netscience network: " + str(d) + "\n")
-
-G3 = nx.read_edgelist("soc-dolphins_out", nodetype=int)
-s = time.process_time()
-seb_unweighted(G3)
-e = time.process_time()
-d = e - s
-output_file.write("dolphins network: " + str(d) + "\n")
-
-G4 = nx.read_edgelist("fb_out", nodetype=int)
-s = time.process_time()
-seb_unweighted(G4)
-e = time.process_time()
-d = e - s
-output_file.write("fb network: " + str(d) + "\n")
-
-G5 = nx.read_edgelist("web-edu_out", nodetype=int)
-s = time.process_time()
-seb_unweighted(G5)
-e = time.process_time()
-d = e - s
-output_file.write("edu network: " + str(d) + "\n")
-
-print("FINISHED")
-"""
