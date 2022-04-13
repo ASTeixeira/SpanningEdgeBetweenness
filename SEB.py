@@ -175,10 +175,7 @@ def seb_unweighted(G):
 
     f.write("Total of Minimum Spanning Trees: 10^" + str(round(nMSTs,3)) + "\n")
 
-    x = 0
     for e in G.edges():
-        print(x)
-        x += 1
         eMSTs = calc_SEB(Laplacian, e, nMSTs)
         G[e[0]][e[1]]['SEB'] = eMSTs
         f.write("" + str(e[0]) + " " + str(e[1]) + " 10^" + str(eMSTs) + "\n")
