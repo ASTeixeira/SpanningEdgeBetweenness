@@ -319,6 +319,7 @@ def seb_unweighted_spark(G):
 
     f.write("Total of Minimum Spanning Trees: 10^" + str(round(nMSTs,3)) + "\n")
 
+<<<<<<< HEAD
 
     edgelistRDD = sc.parallelize(G.edges())
     results = edgelistRDD.map(partial(unweighted_spark, matrix=Laplacian, value=nMSTs)).collect()
@@ -345,6 +346,8 @@ def seb_unweighted(G):
 
     f.write("Total of Minimum Spanning Trees: 10^" + str(round(nMSTs,3)) + "\n")
 
+=======
+>>>>>>> b2deb80da501259dccabdd6fada8e856e71da4c7
     for e in G.edges():
         eMSTs = calc_SEB(Laplacian, e, nMSTs)
         G[e[0]][e[1]]['SEB'] = eMSTs
@@ -371,5 +374,10 @@ def calc_SEB(matrix, e, nMSTs):
     return round(10**(eMSTs-nMSTs),3)
 
 
+<<<<<<< HEAD
 G = nx.read_weighted_edgelist("example_network", nodetype=int)
 seb_weighted(G)
+=======
+G = nx.read_weighted_edgelist("simplenet", nodetype=int)
+seb_weighted(G)
+>>>>>>> b2deb80da501259dccabdd6fada8e856e71da4c7
