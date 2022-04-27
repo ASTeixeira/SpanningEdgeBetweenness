@@ -371,5 +371,5 @@ def calc_SEB(matrix, e, nMSTs):
     return round(10**(eMSTs-nMSTs),3)
 
 
-G = nx.read_edgelist("example_network", nodetype=int)
-seb_unweighted(G)
+G = nx.read_weighted_edgelist("example_network", nodetype=int)
+seb_weighted(G)
