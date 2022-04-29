@@ -503,6 +503,20 @@ def seb_unweighted(G):
 
 
 def calc_SEB(matrix, e, nMSTs):
+    toMSTs = np.delete(matrix, (int(e[0]),int(e[1])), 0)
+    toMSTs = np.delete(toMSTs, (int(e[0]),int(e[1])), 1)
+
+
+    #calculated as in the Java version using Lapack factorization
+    detCalc = 0
+    if len(toMSTs) > 0:
+        LU, piv, info = la.dgetrf(toMSTs)
+        for x in np.diag(LU):
+            detCalc += np.log10(np.abs(x))
+        eMSTs = detCalc
+    
+
+    return round(10**(eMSTs-nMSTs),3)
 
 
 G = nx.read_edgelist("example_network", nodetype=int)
