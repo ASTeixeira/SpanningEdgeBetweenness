@@ -1,6 +1,7 @@
 using PyCall, SparseArrays, Laplacians, Statistics, LinearAlgebra
 
 function scipyCSC_to_julia(A, B, Size, s, d)
+    #Adjacency matrix
     m, n = A.shape
     colPtr = Int[i+1 for i in PyArray(A."indptr")]
     rowVal = Int[i+1 for i in PyArray(A."indices")]
@@ -11,6 +12,7 @@ function scipyCSC_to_julia(A, B, Size, s, d)
     Dims = size(laplacian)
     sol = approxchol_lap(AdjMatrix)
 
+    #Incidence matrix
     m, n = B.shape
     colPtr = Int[i+1 for i in PyArray(B."indptr")]
     rowVal = Int[i+1 for i in PyArray(B."indices")]
