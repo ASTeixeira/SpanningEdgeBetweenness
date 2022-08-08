@@ -52,7 +52,7 @@ def calc_edges_SEB(temp_matrix, edges, prev, nEdge, calcdet, calcNMSTsDet, mapau
         i = 0
         for row, column in edgesInc:
             IncidenceMatrix[i][row] = 1
-            IncidenceMatrix[i][column] = 1
+            IncidenceMatrix[i][column] = -1
             i = i + 1
             AdjMatrix[row][column] = 1
             AdjMatrix[column][row] = 1
