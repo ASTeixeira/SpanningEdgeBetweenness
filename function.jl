@@ -1,12 +1,13 @@
 using PyCall, SparseArrays, Laplacians, Statistics, LinearAlgebra
 
-function scipyCSC_to_julia(A, B, Size, s, d)
+function scipyCSC_to_julia(A, B, Size, edges, vgraph)
     #Adjacency matrix
     m, n = A.shape
     colPtr = Int[i+1 for i in PyArray(A."indptr")]
     rowVal = Int[i+1 for i in PyArray(A."indices")]
     nzVal = Vector{Float64}(PyArray(A."data"))
     AdjMatrix = SparseMatrixCSC{Float64,Int}(m, n, colPtr, rowVal, nzVal)
+
 
     laplacian = lap(AdjMatrix)
     Dims = size(laplacian)
@@ -20,11 +21,11 @@ function scipyCSC_to_julia(A, B, Size, s, d)
     BB = SparseMatrixCSC{Float64,Int}(m, n, colPtr, rowVal, nzVal)
 
 
-    k = round(Int64, log10(Size))
+    k = round(Int64, 6*log2(n)/((0.01)^2/2 - (0.01)^3/3))
     Q = Matrix{Float64}(undef, k, Size)
 
     #Build the random projection matrix
-    value = 1/sqrt(k)
+    value = sqrt(3)/sqrt(k)
     for i in 1:k
         for j in 1:Size
             x = rand(1:6)
@@ -49,14 +50,20 @@ function scipyCSC_to_julia(A, B, Size, s, d)
         Z[:,i] = zi
     end
 
-    println(s," ", d)
+    results = Dict{Tuple, Float64}()
 
-    #+1 in both because indexes start at 1
-    toNorm = Z[s+1,:] - Z[d+1,:]
-    twonorm = norm(toNorm)
-    toret = twonorm * twonorm
+    for x in edges
+        x1 = convert(Int64, x[1])
+        x2 = convert(Int64, x[2])
+        
+        #+1 in both because indexes start at 1
+        toNorm = Z[x1+1,:] - Z[x2+1,:]
+        twonorm = norm(toNorm)
+        toret = twonorm * twonorm
 
-    println(toret)
+        results[(vgraph[x1+1], vgraph[x2+1])] = toret    
+    
+    end
 
-    return toret
+    return results
 end

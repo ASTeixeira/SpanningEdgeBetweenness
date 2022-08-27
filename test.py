@@ -1,6 +1,4 @@
 from julia import Main
-from julia.Laplacians import approxchol_lap
-from julia.Laplacians import lap
 import networkx as nx
 import scipy as sp
 import scipy.sparse
@@ -13,69 +11,38 @@ from operator import itemgetter
 Main.include("function.jl")
 
 
-def calc_edges_SEB(temp_matrix, edges, prev, nEdge, calcdet, calcNMSTsDet, mapaux, mapsets):
-    seb = {}
+def testfunc(vgraph, matrix):
+    #subtract degree matrix from laplacian matrix
+    nbr_nodes = len(vgraph)
+    for ind in range(0, nbr_nodes):
+        matrix[ind][ind] = 0
+    matrix[np.tril_indices(matrix.shape[0], -1)] = 0
+    Laplacian = sp.sparse.csc_matrix(matrix)
+
+    #get number of edges, to build incidence matrix
+    nbr_edges = sp.sparse.csc_matrix.getnnz(Laplacian)
+    IncidenceMatrix = np.zeros((nbr_edges, nbr_nodes))
+    AdjMatrix = np.zeros((nbr_nodes, nbr_nodes))
+
+
+    #building the incidence matrix. Each row is an edge, to be in the correct shape for the multiplication
+    #also building the adjacency matrix
+    edgesInc = zip(*Laplacian.nonzero())
     
-    for edge in np.arange(prev, nEdge):
-        u, v = edges[edge][0], edges[edge][1]
-        s = mapsets[u]
-        d = mapsets[v]
-        
-        if s == d:
-            value = {(u, v) : 0}
-            seb.update(value)
-            continue
-        
-        vgraph = []
-        for el in calcdet[mapaux[u]]:
-            #if el != s and el != d:
-            vgraph.append(el)
-                
-        matrix = temp_matrix[vgraph, :] [:, vgraph]
+    i = 0
+    for row, column in edgesInc:
+        IncidenceMatrix[i][row] = 1
+        IncidenceMatrix[i][column] = -1
+        i = i + 1
+        AdjMatrix[row][column] = 1
+        AdjMatrix[column][row] = 1
 
-        #subtract degree matrix from laplacian matrix
-        nbr_nodes = len(vgraph)
-        for ind in range(0, nbr_nodes):
-            matrix[ind][ind] = 0
-        matrix[np.tril_indices(matrix.shape[0], -1)] = 0
-        Laplacian = sp.sparse.csc_matrix(matrix)
-
-        #get number of edges, to build incidence matrix
-        nbr_edges = sp.sparse.csc_matrix.getnnz(Laplacian)
-        IncidenceMatrix = np.zeros((nbr_edges, nbr_nodes))
-        AdjMatrix = np.zeros((nbr_nodes, nbr_nodes))
-
-
-        #building the incidence matrix. Each row is an edge, to be in the correct shape for the multiplication
-        #also building the adjacency matrix
-        edgesInc = zip(*Laplacian.nonzero())
-        i = 0
-        for row, column in edgesInc:
-            IncidenceMatrix[i][row] = 1
-            IncidenceMatrix[i][column] = -1
-            i = i + 1
-            AdjMatrix[row][column] = 1
-            AdjMatrix[column][row] = 1
-        IncMatrix = sp.sparse.csc_matrix(IncidenceMatrix)
-        AdjacencyMatrix = sp.sparse.csc_matrix(AdjMatrix)
-        
-        
-        ret = Main.scipyCSC_to_julia(AdjacencyMatrix, IncMatrix, nbr_edges, int(s), int(d))
-        #print(ret)
-
-        #calculated as in the Java version using Lapack factorization
-        detCalc = 0
-        # if len(matrix) > 0:
-        #     LU, piv, info = la.dgetrf(matrix)
-        #     for x in np.diag(LU):
-        #         detCalc += np.log10(np.abs(x))
-        eMSTs = detCalc
-
-        value = {(u, v) : round(10**(eMSTs-calcNMSTsDet[mapaux[u]]),3)}
-        seb.update(value)
-        
-    return seb
-
+    IncMatrix = sp.sparse.csc_matrix(IncidenceMatrix)
+    AdjacencyMatrix = sp.sparse.csc_matrix(AdjMatrix)
+    
+    
+    return Main.scipyCSC_to_julia(AdjacencyMatrix, IncMatrix, nbr_edges, list((zip(*Laplacian.nonzero()))), np.array(vgraph))
+    
 
 
 
@@ -94,8 +61,7 @@ def seb_weighted(G):
     vaux = []
     seb_values = {}
     temp_matrix = np.zeros((size, size))
-
-    nmsts = 0
+    encoding = {}
 
     prev = 0
     nEdge = 0
@@ -113,6 +79,8 @@ def seb_weighted(G):
 
             s = mapsets[u]
             d = mapsets[v]
+
+            encoding.update({(u,v): (s,d)})
 
 
             temp_matrix[s][d] += -1
@@ -137,34 +105,30 @@ def seb_weighted(G):
                     mapaux[i] = mapaux[setid]
 
 
+            #criar espaco para os cc formados neste nivel
             calcdet = []
             for i in range(mapid):
                 calcdet.append([])
 
+            #vaux contem os nodes cujos edges foram processados
+            #mapset = mapaux da iteracao anterior, ou seja, o node e representado pelo id do seu cc
             for i in range(len(vaux)):
                 if mapsets[vaux[i]] not in calcdet[mapaux[vaux[i]]]:
                     calcdet[mapaux[vaux[i]]].append(mapsets[vaux[i]])
 
-            calcNMSTsDet = np.zeros(mapid)
+
+
             for i in range(len(calcdet)):
                 if len(calcdet[i]) != 0:
                     vgraph = calcdet[i].copy()
-                    vgraph = vgraph[1:]
                     matrix = temp_matrix[vgraph, :] [:, vgraph]
-                    detCalc = 0
-                    if len(matrix) > 0:
-                        LU, piv, info = la.dgetrf(matrix)
-                        for x in np.diag(LU):
-                            detCalc += np.log10(np.abs(x))
-                    msts = detCalc
-                    nmsts += msts
-                    calcNMSTsDet[i] = msts
-
-            ###############################
-            seb = calc_edges_SEB(temp_matrix, edges, prev, nEdge, calcdet, calcNMSTsDet, mapaux, mapsets)
-            seb_values.update(seb)
-            ###############################
-
+                    results = testfunc(vgraph, matrix)
+                    for result in list(results):
+                        #print(result, "->", list(encoding.keys())[list(encoding.values()).index(result)])
+                        results[list(encoding.keys())[list(encoding.values()).index(result)]] = results.pop(result)
+                    print("results", results)
+                    seb_values.update(results)
+                    
 
             prev = nEdge
             if (nEdge >= nEdges):
@@ -173,6 +137,7 @@ def seb_weighted(G):
             current_weight += 1
             temp_matrix = np.zeros((mapid, mapid))
             vaux = []
+            encoding = {}
             mapsets = mapaux.copy()
             mapaux = np.full(size, -1)
 
@@ -180,7 +145,6 @@ def seb_weighted(G):
             current_weight += 1
 
     nx.set_edge_attributes(G, seb_values,'SEB')
-    print("Total of Minimum Spanning Trees: 10^" + str(round(nmsts, 3)) + "\n")
     return seb_values
     
 
@@ -190,20 +154,20 @@ def seb_weighted(G):
 
 G = nx.read_weighted_edgelist("simplenet", nodetype=int)
 
-seb_weighted(G)
+print(seb_weighted(G))
 
-A = nx.adjacency_matrix(G)
+#A = nx.adjacency_matrix(G)
 
-L = nx.laplacian_matrix(G)
+#L = nx.laplacian_matrix(G)
 
 
 #print(L)
 
-Adjacency = sp.sparse.csc_matrix(nx.adjacency_matrix(G))
+#Adjacency = sp.sparse.csc_matrix(nx.adjacency_matrix(G))
 
-Laplacian = sp.sparse.csc_matrix(nx.laplacian_matrix(G))
+#Laplacian = sp.sparse.csc_matrix(nx.laplacian_matrix(G))
 
-L2 = [[4,-3,-1,0], [-2,4,-1,-1], [-2,-3,6,-1], [0,-3,-1,4]]
+#L2 = [[4,-3,-1,0], [-2,4,-1,-1], [-2,-3,6,-1], [0,-3,-1,4]]
 
 
 #ret = Main.scipyCSC_to_julia(Adjacency)
