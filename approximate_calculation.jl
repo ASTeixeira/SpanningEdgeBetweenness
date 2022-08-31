@@ -22,8 +22,8 @@ function scipyCSC_to_julia(A, B, Size, edges, vgraph)
 
 
     k = round(Int64, 6*log2(n)/((0.01)^2/2 - (0.01)^3/3))
+    
     Q = Matrix{Float64}(undef, k, Size)
-
     #Build the random projection matrix
     value = sqrt(3)/sqrt(k)
     for i in 1:k
