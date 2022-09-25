@@ -1,5 +1,6 @@
 from julia import Main
 import networkx as nx
+import sys
 import scipy as sp
 import scipy.sparse
 import numpy as np
@@ -131,19 +132,30 @@ def seb_weighted(G):
 
             #calculating the aproximate values for each connected component
             for i in range(len(calcdet)):
-                if len(calcdet[i]) != 0:
+                if len(calcdet[i]) != 0 and len(calcdet[i]) != 1:
                     vgraph = calcdet[i].copy()
                     matrix = temp_matrix[vgraph, :] [:, vgraph]
                     results = calculate_aproximation(vgraph, matrix)
+                    
 
                     #the results need to be matched to the original vertexes numbers, so the information can be correctly updated to the graph
-                    for result in list(results):
+                    for tmp in list(results):
+
+                        value = results.pop(tmp)
+
+                        #the code is not aware in which direction the edge is, so for the edge mappping it's necessary to check that
+                        if tmp in decoding:
+                            result = tmp
+                        else:
+                            result = tmp[::-1]
+
+
                         #print(result, "->", list(encoding.keys())[list(encoding.values()).index(result)])
-                        value = results.pop(result)
                         #if there are multiple edges between the same connected components results will only have 1 of those
                         #so decoding and encoding its used to check if multiple vertexes have been translated to the same pair of ids
                         edges_aux = decoding[encoding[list(encoding.keys())[list(encoding.values()).index(result)]]]
                         size_of_edges_aux = len(edges_aux)
+                        
                         #if there are then the result should be equally divided among all the vertexes
                         if len(edges_aux) > 1:
                             for decode in edges_aux:
@@ -153,6 +165,12 @@ def seb_weighted(G):
                             results[list(encoding.keys())[list(encoding.values()).index(result)]] = value
                     
                     #print("results", results)
+                    seb_values.update(results)
+                if len(calcdet[i]) == 1:
+                    list_to_zero = decoding[(calcdet[i][0],calcdet[i][0])]
+                    results = {}
+                    for x in list_to_zero:
+                        results[x] = 0
                     seb_values.update(results)
                     
 
@@ -176,6 +194,6 @@ def seb_weighted(G):
     
 
 
-G = nx.read_weighted_edgelist("simplenet", nodetype=int)
+G = nx.read_weighted_edgelist(sys.argv[1], nodetype=int)
 
 print(seb_weighted(G))

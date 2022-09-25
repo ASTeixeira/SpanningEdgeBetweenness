@@ -61,7 +61,7 @@ function scipyCSC_to_julia(A, B, Size, edges, vgraph)
         twonorm = norm(toNorm)
         toret = twonorm * twonorm
 
-        results[(vgraph[x1+1], vgraph[x2+1])] = toret    
+        results[(vgraph[x1+1], vgraph[x2+1])] = round(toret, digits=2)
     
     end
 
