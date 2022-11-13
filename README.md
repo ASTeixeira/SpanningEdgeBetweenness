@@ -61,6 +61,8 @@ julia -e 'using Pkg; Pkg.add(["Revise", "BenchmarkTools", "PyCall", "SparseArray
 python-jl test.py <network_edgelist_name>
 ```
 
+Also made to calculate the centrality values for <network_edgelist_name>. If not desired same options as exact implementation also apply here, only difference is that edgelist file's name is not hardcoded.
+
 Versions:
 ```
 julia version 1.6.2
